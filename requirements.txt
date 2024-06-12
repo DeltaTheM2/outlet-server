@@ -1,0 +1,5 @@
+Flask
+openai
+os
+flask_cors
+pyaudio

@@ -7,6 +7,8 @@ import pyaudio
 
 OpenaiApiKey = os.environ.get('OPENAI_API_KEY')
 client = OpenAI(api_key=OpenaiApiKey)
+KEPT_PROMPT = ""
+LAST_THREAD_ID = ""
 
 my_assistant = client.beta.assistants.retrieve("asst_g95sff3V5W7glfCKBAmEvZFm")
 
@@ -38,8 +40,17 @@ def genHeader(sampleRate, bitsPerSample, channels):
 
 @app.route("/GenerateResponse/<prompt>", methods=['GET'])
 def generate_response(prompt):
+    global KEPT_PROMPT, LAST_THREAD_ID
+
     try:
-        my_thread = client.beta.threads.create()
+        if prompt != KEPT_PROMPT:
+            KEPT_PROMPT = prompt
+            my_thread = client.beta.threads.create()
+            LAST_THREAD_ID = my_thread.id
+        else:
+            if LAST_THREAD_ID is None:
+                return jsonify({"error": "No thread"}), 400
+            my_thread = client.beta.threads.retrieve(LAST_THREAD_ID)
 
         my_message = client.beta.threads.messages.create(
             thread_id=my_thread.id,
@@ -80,7 +91,6 @@ def generate_response(prompt):
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
-
 @app.route("/welcome", methods=["GET"])
 def welcome():
     stream_response("Welcome")
@@ -120,6 +130,11 @@ def stream_response(prompt):
                 yield data
     return Response(sound(), mimetype='audio/x-wav;codec=pcm')
 
+@app.route('/clear', methods=['POST'])
+def clear():
+    global KEPT_PROMPT, LAST_THREAD_ID
+    KEPT_PROMPT = ""
+    LAST_THREAD_ID = ""
 
 if __name__ == "__main__":
     app.run(debug=True, threded=True)
